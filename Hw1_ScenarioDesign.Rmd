@@ -1,0 +1,33 @@
+---
+title: "HW1-643"
+author: "Sreejaya Nair"
+date: "Tuesday, June 14, 2016"
+output: html_document
+---
+
+<br>
+It is interesting to analyze the video recommendation system used in the world's most popular online video community - youtube.com. The system recommends personalized sets of videos to users based on their activity (searched, watched, favorited, and liked) on the site. 
+<br>
+ <h3>1. Scenario Design Analysis</h3>
+ <b>1. Identify a recommender system web site</b><br><br>
+ While shopping for the textbooks for this class I used a web site with a recommender system, Amazon.com
+ <br><br>
+ <b>2. Answer the three scenario design questions for this web site</b><br><br>
+ 
+  1 -- Who are your target users?<br>
+    Viewers who come to discover, watch and share originally created videos. .<br>
+ 
+  2 -- What are their key goals?<br>
+  To provide personalize recommendations to users to find high quality videos relevant to their interests.        <br>
+ 
+ 3 -- How can you help them accomplish their goals?<br>
+   We can help Youtube.com to accomplish their goal  by giving feedback (like rating, favoriting /liking a video or subscribing to an uploader, adding the video to playlist etc.).
+ <br>
+ <h3>2. Reverse Engineering of the site</h3>
+ Login information of the user, subscription information, cookies, sessions, and browsing history all these help the site to recognize the user and their activity.
+ <br>
+ <br>
+ <h3>3. Recommendations for improving recommender capabilities</h3>
+  1.  They could always remove or keep at the end of the queue of items the videos watched by the user.
+  2.	It will be more useful if they recommend more recently uploaded videos at the top.
+  3.	Also by adding the user surveys how useful the recommendations are, they can improve the recommendations.
