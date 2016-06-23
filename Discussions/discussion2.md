@@ -21,9 +21,9 @@ The main challenge in front of the data scientist team was how to apply these te
 
 The team suggest Kiji framework as a great tool for building big data apps. Kiji schema hides the low level stuff of map reduce. KijiScoring lets developers create real-time predictive models and scoring functions.
 
-![Kiji Framework](img1.PNG)
+![Kiji Framework](img1.png)
 
-![Kiji Framework2](disc2img2.PNG)
+![Kiji Framework2](disc2img2.png)
 
 
 The team uses 2 types of models.
@@ -33,5 +33,5 @@ The team uses 2 types of models.
   
 The example they used in the video is
 Say a customer added an item to the bag, instead of recommending different kinds of the same item, using collaborative filtering the system recommends different items similar customers bought with that product.
-![Collaborative filtering](disc2img3.PNG)
+![Collaborative filtering](disc2img3.png)
 
