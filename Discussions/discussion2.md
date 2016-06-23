@@ -1,11 +1,6 @@
----
-title: "Real-time recommendation systems use in Macy's"
-author: "Sreejaya"
-date: "Thursday, June 23, 2016"
-output:
-  html_document:
-    keep_md: yes
----
+# Real-time recommendation systems use in Macy's
+Sreejaya  
+Thursday, June 23, 2016  
 
 
 ###Real-time recommendation systems in Macy's###
