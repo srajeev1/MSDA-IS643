@@ -1,0 +1,199 @@
+---
+title: "DATA 643 - Project 3"
+author: "Sreejaya Nair, Suman K Polavarapu"
+date: "July 3, 2016"
+output: html_document
+---
+
+###Matrix factorization in the context of recommender systems.
+
+####Description
+
+This assignment uses the Movielens dataset to analyse the matrix factorization techniques for content based recommendations.
+
+
+####Load and prepare the data for analysis
+
+__Load the required libraries__
+```{r, warning=FALSE, message=FALSE}
+##Install & load libraries ##
+
+##If not found, install first.
+unavailable <- setdiff(c("recommenderlab", "reshape2","dplyr", "useful", "data.table", "proxy", "Matrix", "irlba" ), rownames(installed.packages()))
+if (length(unavailable)>0){
+  install.packages(setdiff(c("recommenderlab", "reshape2","dplyr", "useful", "data.table", "proxy", "Matrix", "irlba" ), rownames(installed.packages())))
+}
+
+##load the libraries
+library(recommenderlab)
+library(reshape2)
+library(dplyr)
+# to display the corners for large matrices
+library(useful) 
+library(data.table)
+library(proxy)
+library(Matrix)
+#for svd
+library(irlba)
+```
+
+__Data Acquisition & Preprocessing__
+```{r, warning=FALSE, message=FALSE}
+#Download the movie lens datasets zip directly from the web site.
+download.file("http://files.grouplens.org/datasets/movielens/ml-100k.zip", destfile = "ml-100k.zip")
+
+#Unzip the zip file into movies directly of the current working directory.
+unzip("ml-100k.zip", exdir = "movies")
+dir("movies/ml-100k")
+
+#Ratings Dataset
+ratings <- read.table("movies//ml-100k/u.data", header=FALSE, sep="\t", col.names = c("UserID", "MovieID", "Rating", "Timestamp"))
+head(ratings)
+ratings$Timestamp <- as.POSIXct(ratings$Timestamp, origin="1970-01-01")
+head(ratings)
+```
+
+__Prepare 'User Ratings' Matrix. Rows should represent the MovieID and Columns are UserID__
+
+```{r, warning=FALSE, message=FALSE}
+##Prepare User Ratings Matrix. Rows should represent the MovieID and Columns are UserID
+##-------------------------------------------------------------------------------------
+(numberOfObservations <- nrow(ratings))
+userratings <- ratings
+for (i in 1:numberOfObservations){
+  if (userratings[i,3] > 3){
+    userratings[i,3] <- 1
+  }
+  else{
+    userratings[i,3] <- -1
+  }
+}
+#We do not need timestamp
+userratings <- userratings[, -4]
+head(userratings)
+
+#RE-SHAPE - dcast & binarize -  long format to wide format with movie as row and userid as column
+user.bin.ratings <- dcast(userratings, MovieID~UserID, value.var = "Rating", na.rm=FALSE)
+for (i in 1:ncol(user.bin.ratings)){
+  user.bin.ratings[which(is.na(user.bin.ratings[,i]) == TRUE),i] <- 0
+}
+corner(user.bin.ratings)
+
+#remove MovieID col. Rows are MovieID, cols are UserID
+user.bin.ratings = user.bin.ratings[,-1] 
+corner(user.bin.ratings)
+
+#There are 1682 movies and 943 users ratings in the user.bin.ratings matrix.
+dim(user.bin.ratings)
+```
+
+
+__Prepare the 'Movie Genres' Matrix. Rows should represent the MovieID and Columns are Genres__
+
+```{r, warning=FALSE, message=FALSE}
+##Prepare Movie Genres Matrix. Rows should represent the MovieID and Columns are Genres
+##-------------------------------------------------------------------------------------
+genres <- as.data.table(read.table("movies/ml-100k/u.genre", header=FALSE, sep = '|',  quote = ""))
+setnames(genres, c('Name', 'ID'))
+knitr::kable(genres)
+
+data.movies <- as.data.table(read.table("movies/ml-100k/u.item", header=FALSE,  sep = '|', quote = ""))
+# removing the columns in which all values are NA 
+data.movies = data.movies[, colSums(is.na(data.movies))<nrow(data.movies), with = F]
+corner(data.movies)
+setnames(data.movies, c('MovieID', 'MovieName', 'ReleaseDate', 'URL', as.character(genres$Name)))
+corner(data.movies,5,8)
+
+
+#Final Movie Genres Matrix matrix
+movie.genres <- data.movies[, -(1:5), with=F]
+head(movie.genres)
+
+#There are 1682 movies and 18 genres in the movie.genres matrix.[ 1 indicates true, 0 indicates false]
+dim(movie.genres)
+```
+
+
+####Build User Profile Matrix for recommendation. ( DOT PRODUCT of the 'Movie Ratings' and 'Movie Genres' )
+
+Lets create a simple user profile matrix, by calculating the dot product of the movie genres matrix and the user binary ratings matrix.
+
+```{r, warning=FALSE, message=FALSE}
+##User Profile Matrix = Dot Product of (Movie Genres Matrix) and (User Ratings Matrix)
+##User Profile Matrix - with rows as the Genres [18] and Columns as the User IDs [943]
+#-------------------------------------------------------------------------------------
+#
+
+#Calculate dot product for User Profiles
+genres.data <- as.data.frame(movie.genres)
+(cols <- ncol(user.bin.ratings))
+(rows <- ncol(genres.data))
+user.profiles = matrix(0,rows,cols)
+
+for (c in 1:cols){
+  for (r in 1:rows){
+    user.profiles[r,c] <- sum((genres.data[,r]) * (user.bin.ratings[,c]))
+  }
+}
+corner(user.profiles)
+
+
+#binarize
+user.profiles <- as.matrix((user.profiles > 0) + 0)
+corner(user.profiles)
+```
+
+
+####Recommend movies to user 1.
+
+So, we have got the user profile matrix, which contains the users general aggreagated inclination towards the movie genres. Lets check for a sample user's profile's interests and recommend few movies based on the Jaccard similarity distance, which works better for binary matrices like this.
+
+```{r, warning=FALSE, message=FALSE}
+#
+#Lets get the first users interests
+(user.1.profile <- user.profiles[,1]) #First user's profile
+
+#rbind it with the genres matrix, and check the similarity
+similarity <- rbind.data.frame(user.1.profile, genres.data)
+similarity <- data.frame(lapply(similarity,function(x){as.integer(x)})) #convert data to type integer
+
+#Calculate Jaccard distance between our first user profile and all movie genres data.
+similarity_results <- dist(similarity, method = "Jaccard")
+similarity_results <- as.data.frame(as.matrix(similarity_results[1:nrow(genres.data)]))
+#find the ones with minimum distance
+closest.rows <- which(similarity_results == min(similarity_results))
+
+#Recommended movies
+genres.data[closest.rows,]
+corner(data.movies[closest.rows,],2,3)
+```
+
+####Observation:
+
+So, for content based recommendations, we do not need lot of user data, we can start giving recommendations to users based on the item data. On the flip side, if our item data is not well distributed ( say, we have got lots of action movies only), then the recommendations won't be effective here.
+
+####Apply SVD to ratings matrix.
+
+Similary, another matrix factorization technique, SVD,  compresses the ratings matrix by considering the only high varying values. Lets review this:
+
+```{r, warning=FALSE, message=FALSE}
+#Try to apply the SVD on the initial ratings matrix and review the object sizes.
+head(ratings)
+
+m.matrix = sparseMatrix(i = ratings$UserID, j = ratings$MovieID,x=ratings$Rating)
+
+#Lets just focus on 20 large singular values, and correponding singular vectors
+m.svd = irlba(m.matrix, nu = 20, nv = 20) 
+
+(object.size(m.matrix))
+
+recommenderlab::plot(m.svd$d, main="20 large singular values")
+
+(d <- m.svd$d)
+corner(u <- m.svd$u)
+corner(v <- m.svd$v)
+
+#Notice the size difference between the original ratings matrix Vs the factored matrices !
+(object.size(m.matrix)- sum(object.size(m.svd$u), object.size(m.svd$d), object.size(m.svd$v) ))
+````
+
