@@ -1,0 +1,193 @@
+---
+title: | 
+ | DATA 643 - Final Project Part-I
+ | Context Based Movie Recommendation System
+ 
+author: "Sreejaya Nair, Suman K Polavarapu"
+date: "7/18/2016"
+output: html_document
+---
+
+###Description
+
+This assignment leverages the context pre filtering and makes it 2D and applies traditional recommender algorithms.
+
+Data set source: https://github.com/irecsys/CARSKit/tree/master/context-aware_data_sets
+
+###Load Libraries
+```{r, warning=FALSE, message=FALSE}
+#Step1 - Load libraries
+library(dplyr)
+library(recommenderlab)
+library(reshape2)
+library(RCurl)
+library(ggplot2)
+library(base)
+```
+
+
+###Binarize data.
+```{r, warning=FALSE, message=FALSE}
+# Step - Binarize.
+binarize <- function(df, ratingFieldName) {
+  #If the rating is >= 3, then we treat it as 1, else 0.
+  
+  df$ratingFieldName = ifelse(as.numeric(df[[ratingFieldName]]) >= 3, 1, 0)
+  return (df)
+}
+```
+
+
+###Pre-Filtering technique
+```{r, warning=FALSE, message=FALSE}
+#3. Pre-Filtering - Prepare the predicates and Pre-Filter the contexts as per the match criteria.
+filterByContext <- function (df, contexts, exactMatch){
+  predicates <- sapply(contexts, function(context) {
+    name  <-  context[1]
+    value <-  context[2]
+    paste0(name,"=='",value , "'")
+  })
+  
+  #Now combine ALL given predicates
+  if (exactMatch) {
+    predicates <- do.call(paste, c(as.list(predicates), sep=" & "))  
+  }
+  else {
+    predicates <- do.call(paste, c(as.list(predicates), sep=" | "))  
+  }
+  
+  #Print
+  print(predicates)
+  
+  #Filter Now.
+  ( df.filtered <- df %>% filter_( predicates) )
+}
+
+
+```
+
+###Get real ratings matrix
+```{r, warning=FALSE, message=FALSE}
+
+#Get real ratings matrix from the sparse matrix
+getRealRatingsMatrix <- function(sparseMatrix) {
+  
+  sparseMatrix<-as.matrix(sparseMatrix)
+  
+  #Lest check how sparse this matrix is.
+  sparseMatrixTemp <- sparseMatrix
+  is.na(sparseMatrixTemp) <- sparseMatrixTemp==0  
+  
+  print(paste0("Sparsity of the matrix:",      sum(is.na(sparseMatrixTemp))/(nrow(sparseMatrixTemp)*ncol(sparseMatrixTemp))))
+  
+  #Make it as real ratings matrix.
+  sparseMatrix.realRatings <- as(sapply(data.frame(sparseMatrix),as.numeric), "realRatingMatrix")
+  
+  return(sparseMatrix.realRatings)
+}
+
+```
+
+###Split the data frame into train and test
+```{r, warning=FALSE, message=FALSE}
+
+#Split the data frame into train and test.
+splitDF <- function(normRatingMat)
+{
+  ## 75% of the sample size
+  smp_size <- floor(0.75 * nrow(normRatingMat))
+  set.seed(123)
+  train_ind <- sample(seq_len(nrow(normRatingMat)), size = smp_size)
+  
+  train.RatingMat <- normRatingMat[train_ind, ]
+  test.RatingMat <- normRatingMat[-train_ind, ]
+  
+  
+  return(list(trainDF=train.RatingMat, testDF=test.RatingMat))
+}
+```
+
+
+###Create the Model
+```{r, warning=FALSE, message=FALSE}
+
+#Create the Model for the rating matrix and method.
+createModel <-function (ratingMat,algType)
+{
+  model <- Recommender(ratingMat, method = algType)
+  names(getModel(model))
+  getModel(model)$method
+  
+  getModel(model)$nn
+  
+  return (model)
+}
+
+```
+
+###Recommendations
+```{r, warning=FALSE, message=FALSE}
+#Provide the recommendations/predictions.
+recommendations <- function(ratingMat, model, userID, n)
+{
+  ### predict top n recommendations for given user
+  topN_recommendList <-predict(model,ratingMat[userID],n=n) 
+  topN_recommendList@items[[1]]
+  return(topN_recommendList)
+}
+```
+
+
+###Data Acquisition and preprocessing
+```{r, warning=FALSE, message=FALSE}
+#Data Acquisition and preprocessing
+ratingsurl <- getURL("https://raw.githubusercontent.com/srajeev1/MSDA-IS643/master/projects/Project4/ratings.txt")
+ratings <- read.csv(text = ratingsurl,header = TRUE, stringsAsFactors = FALSE)
+knitr::kable(ratings[10:20,])
+
+# Step2. #binarize.
+ranking.data <- binarize(ratings, "rating")
+ranking.data$rating=ranking.data$ratingFieldName
+knitr::kable(ranking.data[10:20,])
+
+
+#3. Initialize the context.
+#Pre-filter contexts - sample context we are trying out is the Time as 'Weekend' and Location is 'Home'
+contexts <- list(c('Time','Weekend'), c('Location','Home'))
+ranking.data.context <- filterByContext(ranking.data, contexts, TRUE)
+knitr::kable(ranking.data.context[10:20,])
+
+#4. Now convert into 2D and apply the traditional recommenders
+rating.df <- ranking.data.context %>% select(userid, itemid, rating)
+rating.wide <-dcast(rating.df, userid ~ itemid, value.var='rating', fun.aggregate= mean, na.rm=T)
+dim(rating.wide)
+
+#5. This is a highly sparse matrix, so, get the real ratings matrix
+realrating.matrix <- getRealRatingsMatrix(rating.wide)
+
+
+#6. Visualize it!
+image(realrating.matrix, main = "Heatmap of the rating matrix")
+
+
+#7. Split Dataframe
+splitData <-splitDF(realrating.matrix)
+
+
+#8. Prepare models
+IBCF.model <- createModel(splitData$trainDF,"IBCF")
+UBCF.model <- createModel(splitData$trainDF,"UBCF")
+
+#Let us get the top 4 recommendations for user 1122 for the given context.
+
+userID <- 10
+topN <- 10
+predict_list <-recommendations(splitData$trainDF, UBCF.model, userID, topN)
+ranking.data.context[predict_list@items[[1]],c("itemid", "Time", "Location")]
+
+userID <- 10
+topN <- 10
+predict_list <-recommendations(splitData$trainDF, IBCF.model, userID, topN)
+ranking.data.context[predict_list@items[[1]],c("itemid", "Time", "Location")]
+
+```
